@@ -1,0 +1,74 @@
+# 依赖目录
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 构建输出
+dist/
+dist-ssr/
+*.local
+
+# 环境变量文件（包含敏感配置）
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# 数据文件（隐私数据）
+data/
+
+# 日志文件
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 编辑器目录和文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# 操作系统文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+.parcel-cache/
+
+# 测试覆盖率
+coverage/
+*.lcov
+.nyc_output/
+
+# 调试文件
+.vscode/launch.json
+*.pdb
+
+# Docker相关（如果包含敏感信息，可以取消注释）
+# docker-compose.override.yml
+
+# 其他
+*.bak
+*.backup
+*.old
+

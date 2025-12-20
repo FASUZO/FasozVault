@@ -1,0 +1,44 @@
+# ============================================
+# FasozVault - 生产环境 Docker Compose 配置
+# ============================================
+# 使用方法：docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  fasozvault:
+    image: fasozvault:latest
+    container_name: fasozvault-prod
+    restart: always
+    ports:
+      - "30020:3000"
+    volumes:
+      - ./data:/app/data:rw
+      - ./.env:/app/.env:ro
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:30020/api/env', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+    networks:
+      - fasozvault-network
+
+networks:
+  fasozvault-network:
+    driver: bridge
+
