@@ -130,3 +130,65 @@ export function getComponentDetails(compositeAsset, field, allAssetsData) {
   return details;
 }
 
+/**
+ * 验证组合资产数据的有效性
+ * @param {Object} asset - 要验证的资产对象
+ * @param {Array} allAssetsData - 所有资产数据数组
+ * @returns {Object} 验证结果 {valid: boolean, cleaned: number, message: string}
+ * 
+ * 验证内容：
+ * 1. 检查 components 数组中的 ID 是否有效
+ * 2. 检查是否存在循环引用（资产不能包含自己）
+ * 3. 自动清理无效的 ID
+ * 
+ * 示例：
+ * validateCompositeAsset(asset, allAssetsData)
+ * 返回：{valid: true, cleaned: 2, message: "已自动清理 2 个无效的子资产引用"}
+ */
+export function validateCompositeAsset(asset, allAssetsData) {
+  // 如果不是组合资产，直接返回有效
+  if (!asset.isComposite || !Array.isArray(asset.components)) {
+    return { valid: true, cleaned: 0, message: '' };
+  }
+  
+  const validIds = new Set(allAssetsData.map(a => a.originId));
+  let cleaned = 0;
+  const messages = [];
+  
+  // 检查循环引用：资产不能包含自己
+  if (asset.originId && asset.components.includes(asset.originId)) {
+    asset.components = asset.components.filter(id => id !== asset.originId);
+    cleaned++;
+    messages.push('已移除循环引用（资产不能包含自己）');
+  }
+  
+  // 检查无效的 ID
+  const invalidIds = asset.components.filter(id => !validIds.has(id));
+  if (invalidIds.length > 0) {
+    asset.components = asset.components.filter(id => validIds.has(id));
+    cleaned += invalidIds.length;
+    messages.push(`已自动清理 ${invalidIds.length} 个无效的子资产引用`);
+  }
+  
+  // 确保 components 是数组
+  if (!Array.isArray(asset.components)) {
+    asset.components = [];
+    cleaned++;
+    messages.push('已修复 components 字段格式');
+  }
+  
+  // 去重 components
+  const originalLength = asset.components.length;
+  asset.components = [...new Set(asset.components)];
+  if (asset.components.length < originalLength) {
+    cleaned += (originalLength - asset.components.length);
+    messages.push(`已移除 ${originalLength - asset.components.length} 个重复的子资产引用`);
+  }
+  
+  return {
+    valid: true,
+    cleaned: cleaned,
+    message: messages.length > 0 ? messages.join('；') : ''
+  };
+}
+

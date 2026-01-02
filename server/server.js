@@ -13,17 +13,25 @@
  *
  * 提示：可在根目录创建 .env 文件来持久化配置；运行 `npm run setup` 会自动生成 .env（第一次使用）。
  ****/
+/****
+ * FasozVault API Server (Express) - Optimized
+ * ----------------------------------
+ * 优化点：
+ * 1. 使用原子写入 (Atomic Write) 保护 data.json 数据完整性
+ * 2. 优化文件操作为异步，避免阻塞事件循环
+ ****/
 require('dotenv').config();
 const fs = require('fs');
+const fsPromises = require('fs').promises; // 引入 Promise 版 fs
 const path = require('path');
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 可配置参数
-const LOG_LEVEL   = process.env.LOG_LEVEL   || 'info';   // debug | info | error
-const JSON_LIMIT  = process.env.JSON_LIMIT  || '50mb';   // eg. 100mb
-const DATA_DIR_ENV= process.env.DATA_DIR    || 'data';   // 绝对路径或相对项目根目录
+const LOG_LEVEL   = process.env.LOG_LEVEL   || 'info';
+const JSON_LIMIT  = process.env.JSON_LIMIT  || '50mb';
+const DATA_DIR_ENV= process.env.DATA_DIR    || 'data';
 
 // 前端默认行为配置
 const DEFAULT_DARK        = process.env.DEFAULT_DARK   === 'true';
@@ -31,14 +39,16 @@ const DEFAULT_AUTO_SAVE   = process.env.DEFAULT_AUTO_SAVE === 'true';
 const DEFAULT_DEBUG_FRONT = process.env.DEFAULT_DEBUG  === 'true';
 let FONT_URL            = process.env.FONT_URL || '';
 
+// 项目根目录
+const ROOT_DIR = path.join(__dirname, '..');
+
 // 若设置了 FONT_URL，但文件不存在，则自动禁用
 if(FONT_URL){
   try{
-    // 仅处理相对路径，以 / 或 ./ 开头的情况；远程 URL 不作校验
     if(!/^https?:\/\//i.test(FONT_URL)){
       const abs = path.isAbsolute(FONT_URL) ? FONT_URL : path.join(ROOT_DIR, FONT_URL.replace(/^\//, ''));
       if(!fs.existsSync(abs)){
-        logger.info('FONT_URL 指向的文件不存在，已忽略:', FONT_URL);
+        console.log('[INFO ] FONT_URL 指向的文件不存在，已忽略:', FONT_URL);
         FONT_URL = '';
       }
     }
@@ -52,33 +62,30 @@ const logger = {
   error: (...args)=> console.error('[ERROR]', ...args)
 };
 
-// ----------------- 新增: 初始数据常量 -----------------
+// ----------------- 初始数据常量 -----------------
 const DEFAULT_DATA = {
   categories: ['设备', '软件', '零件', '其他'],
   channels: ['淘宝', '京东', '拼多多', '闲鱼', '其他'],
   tags: [],
   assets: []
 };
-// -----------------------------------------------------
-
-// 项目根目录
-const ROOT_DIR = path.join(__dirname, '..');
 
 // 若存在 Vite 打包后的 dist 目录，则优先使用
 const STATIC_DIR = fs.existsSync(path.join(ROOT_DIR, 'dist'))
   ? path.join(ROOT_DIR, 'dist')
   : ROOT_DIR;
 
-// 数据目录及文件路径 (支持自定义)
+// 数据目录及文件路径
 const DATA_DIR = path.isAbsolute(DATA_DIR_ENV) ? DATA_DIR_ENV : path.join(ROOT_DIR, DATA_DIR_ENV);
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const DATA_PATH = path.join(DATA_DIR, 'data.json');
 
 // -------- 备份与设置 --------
 const BACKUP_DIR = path.join(DATA_DIR,'backups');
-if(!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR);
+if(!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
 const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
+
 function loadSettings(){
   try{
     if(fs.existsSync(SETTINGS_PATH)) return JSON.parse(fs.readFileSync(SETTINGS_PATH,'utf-8'));
@@ -91,11 +98,27 @@ function saveSettings(obj){
 }
 let settings = loadSettings();
 
+// 安全原子写入函数 (新增优化)
+async function safeWriteJson(filepath, data) {
+  const tempPath = `${filepath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  try {
+    // 1. 写入临时文件
+    await fsPromises.writeFile(tempPath, JSON.stringify(data, null, 2), 'utf8');
+    // 2. 原子重命名
+    await fsPromises.rename(tempPath, filepath);
+  } catch (err) {
+    // 清理临时文件
+    if (fs.existsSync(tempPath)) await fsPromises.unlink(tempPath).catch(()=>{});
+    throw err;
+  }
+}
+
 function createBackup(){
   try{
     const ts = new Date();
     const name = `backup_${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}${String(ts.getSeconds()).padStart(2,'0')}.json`;
     const dest = path.join(BACKUP_DIR, name);
+    // 使用同步拷贝保证备份即时完成，或者也可以改为异步
     fs.copyFileSync(DATA_PATH, dest);
     settings.lastBackupAt = Date.now();
     saveSettings(settings);
@@ -110,21 +133,19 @@ function maybeAutoBackup(){
   const due = (Date.now() - (settings.lastBackupAt||0)) >= days*24*60*60*1000;
   if(due) createBackup();
 }
-// -------------------------
 
-// 图片上传目录（位于 data/uploads）
+// 图片上传目录
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-// 如果 data.json 不存在，创建默认结构
+// 初始化数据文件
 if (!fs.existsSync(DATA_PATH)) {
   fs.writeFileSync(DATA_PATH, JSON.stringify(DEFAULT_DATA, null, 2));
 }
 
-// 允许更大的 JSON 体（最多 50MB），以保存包含 Base64 图片的数据
 app.use(express.json({ limit: JSON_LIMIT }));
 
-// 添加请求日志中间件（调试用，放在路由之前）
+// 请求日志
 app.use((req, res, next) => {
   if (LOG_LEVEL === 'debug') {
     logger.debug(`${req.method} ${req.path}`);
@@ -132,17 +153,17 @@ app.use((req, res, next) => {
   next();
 });
 
-// 全局错误处理（捕获过大请求体等）
+// 错误处理
 app.use((err, req, res, next) => {
   if (err.type === 'entity.too.large') {
     console.error('Payload too large:', err.length);
-    return res.status(413).json({ ok: false, message: 'Payload too large', max: '50mb' });
+    return res.status(413).json({ ok: false, message: 'Payload too large', max: JSON_LIMIT });
   }
   return next(err);
 });
 
-// API 路由（必须在静态文件服务之前）
-// 提供前端运行时配置
+// --- API ---
+
 app.get('/api/env', (_,res)=>{
   res.json({
     defaultDark: DEFAULT_DARK,
@@ -152,21 +173,39 @@ app.get('/api/env', (_,res)=>{
   });
 });
 
-// 读取数据
 app.get('/api/data', (_, res) => {
-  res.sendFile(DATA_PATH);
+  try {
+    if (!fs.existsSync(DATA_PATH)) {
+      // 如果数据文件不存在，创建默认数据
+      fs.writeFileSync(DATA_PATH, JSON.stringify(DEFAULT_DATA, null, 2));
+    }
+    res.sendFile(DATA_PATH);
+  } catch (err) {
+    logger.error('读取数据文件失败', err);
+    res.status(500).json({ ok: false, err: err.message });
+  }
 });
 
-// 保存数据（整包覆盖）
-app.post('/api/data', (req, res) => {
-  // 打印调试信息：请求体大小
+// 保存数据 - 优化为异步 + 原子写入
+app.post('/api/data', async (req, res) => {
   const bodySize = Buffer.byteLength(JSON.stringify(req.body));
   logger.info('Saving data, size:', bodySize, 'bytes');
 
   try {
     const newData = req.body;
 
-    // ---------- 处理图片字段 ----------
+    // ---------- 数据验证 ----------
+    if (!newData || typeof newData !== 'object') {
+      return res.status(400).json({ ok: false, err: '无效的数据格式' });
+    }
+
+    // 确保必要字段存在
+    if (!Array.isArray(newData.categories)) newData.categories = DEFAULT_DATA.categories;
+    if (!Array.isArray(newData.channels)) newData.channels = DEFAULT_DATA.channels;
+    if (!Array.isArray(newData.tags)) newData.tags = [];
+    if (!Array.isArray(newData.assets)) newData.assets = [];
+
+    // ---------- 图片处理 (同步写入图片文件，保持逻辑简单) ----------
     if(Array.isArray(newData.assets)){
       newData.assets = newData.assets.map(a=>{
         if(a.image && a.image.startsWith('data:image')){
@@ -175,7 +214,10 @@ app.post('/api/data', (req, res) => {
             if(match){
               const ext = match[1];
               const b64 = match[2];
-              const fileName = `img_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+              // 使用更唯一的文件名，避免冲突
+              const timestamp = Date.now();
+              const random = Math.random().toString(36).slice(2, 10);
+              const fileName = `img_${timestamp}_${random}.${ext}`;
               const filePath = path.join(UPLOAD_DIR, fileName);
               fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
               a.image = `/uploads/${fileName}`;
@@ -186,7 +228,9 @@ app.post('/api/data', (req, res) => {
       });
     }
 
-    // ---------- 清理已删除的本地图片 ----------
+    // ---------- 图片清理逻辑 (可选：可改为异步) ----------
+    // 为了性能，可以考虑暂时保留清理逻辑或将其移至独立任务
+    // 这里保持原逻辑以确保功能一致性
     let oldImages = [];
     try{
       if(fs.existsSync(DATA_PATH)){
@@ -208,14 +252,14 @@ app.post('/api/data', (req, res) => {
       try{
         const abs = path.join(ROOT_DIR, relPath.replace(/^\//, ''));
         if(fs.existsSync(abs)){
-          fs.unlinkSync(abs);
+          fs.unlinkSync(abs); // 既然是删除无用文件，同步删除也没问题
           logger.info('已删除未使用的图片文件:', abs);
         }
       }catch(e){ logger.error('删除图片失败', e); }
     });
 
-    // ---------- 写入新数据 ----------
-    fs.writeFileSync(DATA_PATH, JSON.stringify(newData, null, 2));
+    // ---------- 核心优化：原子写入数据 ----------
+    await safeWriteJson(DATA_PATH, newData);
 
     // 自动备份检查
     maybeAutoBackup();
@@ -227,63 +271,46 @@ app.post('/api/data', (req, res) => {
   }
 });
 
-// 重置数据为初始状态
-app.post('/api/reset', (req, res) => {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(DEFAULT_DATA, null, 2));
-  res.json({ ok: true });
+app.post('/api/reset', async (req, res) => {
+  try {
+    await safeWriteJson(DATA_PATH, DEFAULT_DATA);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error('重置数据失败', err);
+    res.status(500).json({ ok: false, err: err.message });
+  }
 });
 
-// 修复数据：清理不存在的附件引用并删除冗余文件
 app.post('/api/fix', (req, res) => {
+  // ... (fix 逻辑保持不变)
   try{
-    // 读取现有数据
     const data = JSON.parse(fs.readFileSync(DATA_PATH, 'utf-8'));
-
     if(!Array.isArray(data.assets)) data.assets = [];
-
-    // 收集引用的本地图片文件名
-    const referenced = new Set(); // 文件名集合，如 img_xxx.jpg
+    const referenced = new Set();
     let cleaned = 0;
-
     data.assets.forEach(a=>{
       if(a.image && typeof a.image === 'string' && a.image.includes('/uploads/')){
         const filename = path.basename(a.image);
         const abs = path.join(UPLOAD_DIR, filename);
-        if(fs.existsSync(abs)){
-          referenced.add(filename);
-        }else{
-          // 文件已不存在，清空引用
-          a.image = '';
-          cleaned++;
-        }
+        if(fs.existsSync(abs)) referenced.add(filename);
+        else { a.image = ''; cleaned++; }
       }
     });
-
-    // 删除未被引用的文件
     let deleted = 0;
-    const files = fs.readdirSync(UPLOAD_DIR);
-    files.forEach(fname=>{
+    fs.readdirSync(UPLOAD_DIR).forEach(fname=>{
       if(!referenced.has(fname)){
-        try{
-          fs.unlinkSync(path.join(UPLOAD_DIR, fname));
-          deleted++;
-        }catch(e){ logger.error('删除文件失败', e); }
+        try{ fs.unlinkSync(path.join(UPLOAD_DIR, fname)); deleted++; }
+        catch(e){ logger.error('删除文件失败', e); }
       }
     });
-
-    // 保存回数据
     fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-
-    logger.info(`修复数据完成，清理引用 ${cleaned} 个，删除文件 ${deleted} 个`);
     res.json({ ok:true, cleaned, deleted });
-
   }catch(err){
     logger.error('修复数据失败', err);
     res.status(500).json({ ok:false, message:err.message });
   }
 });
 
-// 手动备份
 app.post('/api/backup', (req,res)=>{
   try{
     const file = createBackup();
@@ -291,7 +318,6 @@ app.post('/api/backup', (req,res)=>{
   }catch(e){ res.status(500).json({ ok:false, message:e.message }); }
 });
 
-// 读取/更新备份配置
 app.get('/api/backup-config', (_,res)=>{
   res.json({ days: settings.backupIntervalDays||0 });
 });
@@ -304,33 +330,10 @@ app.post('/api/backup-config', (req,res)=>{
   res.json({ ok:true });
 });
 
-// 提供上传图片静态访问
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-// 提供静态资源（HTML/CSS/JS）- 放在 API 路由之后
-// 添加调试日志
-logger.info('静态文件目录:', STATIC_DIR);
-logger.info('静态目录是否存在:', fs.existsSync(STATIC_DIR));
-if (fs.existsSync(STATIC_DIR)) {
-  try {
-    const files = fs.readdirSync(STATIC_DIR);
-    logger.info('静态目录内容:', files);
-    // 检查 pages 目录
-    const pagesPath = path.join(STATIC_DIR, 'pages');
-    if (fs.existsSync(pagesPath)) {
-      const pageFiles = fs.readdirSync(pagesPath);
-      logger.info('pages 目录内容:', pageFiles);
-    } else {
-      logger.error('pages 目录不存在:', pagesPath);
-    }
-  } catch (e) {
-    logger.error('读取静态目录失败:', e.message);
-  }
-} else {
-  logger.error('静态目录不存在:', STATIC_DIR);
-}
-
 // 静态文件服务
+logger.info(`Static directory: ${STATIC_DIR}`);
 app.use(express.static(STATIC_DIR, {
   index: 'index.html',
   extensions: ['html', 'htm']
@@ -338,6 +341,5 @@ app.use(express.static(STATIC_DIR, {
 
 app.listen(PORT, () => {
   logger.info(`Server running at http://localhost:${PORT}`);
-  logger.info(`Static directory: ${STATIC_DIR}`);
   logger.info(`Data directory: ${DATA_DIR}`);
-}); 
+});

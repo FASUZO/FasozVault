@@ -609,10 +609,17 @@ function syncToServer(force = false) {
             body: JSON.stringify(data)
           }).then(res => res.json())
             .then(r => {
-              if (r.success) {
-                alert('数据已保存，重启服务后生效');
+              if (r.ok) {
+                alert('数据已保存！');
                 document.body.removeChild(overlay);
-              } else alert('保存失败！');
+                location.reload();
+              } else {
+                alert('保存失败：' + (r.message || r.err || '未知错误'));
+              }
+            })
+            .catch(err => {
+              console.error('保存失败', err);
+              alert('保存失败，请检查控制台日志');
             });
         });
       });

@@ -30,7 +30,9 @@ function saveTasks(){
 }
 
 // FAB 添加任务
-document.getElementById('fabAdd').onclick=()=>{
+const fabAdd = document.getElementById('fabAdd');
+if(fabAdd){
+  fabAdd.onclick=()=>{
   const overlay=document.createElement('div'); overlay.className='overlay';
   const modal=document.createElement('div'); modal.className='modal'; modal.style.width='300px';
   modal.innerHTML='<h3>新增待办</h3>';
@@ -43,7 +45,8 @@ document.getElementById('fabAdd').onclick=()=>{
   cancel.onclick=()=>document.body.removeChild(overlay);
   modal.appendChild(input); modal.appendChild(date); modal.appendChild(ok); modal.appendChild(cancel);
   overlay.appendChild(modal); document.body.appendChild(overlay);
-};
+  };
+}
 
 // DOM refs
 const listEl = document.getElementById('todoList');
@@ -84,7 +87,9 @@ function addTask(){
   titleInput.value=''; saveTasks(); render();
 }
 
-addBtn.addEventListener('click', addTask);
+if(addBtn){
+  addBtn.addEventListener('click', addTask);
+}
 
 // 初始
 loadTasks(); logInfo('[planning] loaded tasks', tasks); render(); 

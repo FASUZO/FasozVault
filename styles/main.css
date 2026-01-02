@@ -991,3 +991,81 @@ body.dark .context-menu-item:hover {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ... 保留原有内容 ... */
+
+/* ==== 新增优化样式 (替代 assets.js 中的内联样式) ==== */
+
+/* 组合资产 Tooltip */
+.composite-tooltip {
+  position: absolute;
+  background: rgba(0,0,0,0.9);
+  color: #fff;
+  padding: 8px;
+  border-radius: 4px;
+  z-index: 10000;
+  white-space: pre-line;
+  font-size: 12px;
+  max-width: 300px;
+  pointer-events: none; /* 防止遮挡鼠标事件 */
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+body.dark .composite-tooltip {
+  background: rgba(255,255,255,0.9);
+  color: #000;
+}
+
+/* 模态框内的网格布局 */
+.modal-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  font-size: 14px;
+}
+
+/* 模态框内的信息项 */
+.modal-info-item {
+  display: flex;
+  gap: 8px;
+}
+.modal-info-label {
+  font-weight: 500;
+  color: #666;
+}
+body.dark .modal-info-label {
+  color: #aaa;
+}
+
+/* 附件预览窗口样式 (如果使用 window.open 可以忽略，但如果是模态框则需要) */
+.attachment-preview-body {
+  margin: 0;
+  padding: 20px;
+  background: #f5f5f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+.attachment-preview-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* 子资产列表项 */
+.component-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background-color: #fff;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+body.dark .component-item {
+  background-color: #2a2a2a;
+  border-color: #444;
+}

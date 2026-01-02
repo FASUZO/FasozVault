@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.setFontScale = function(pct){
       pct = parseInt(pct,10);
       if(isNaN(pct)) return; pct = Math.max(80, Math.min(150, pct));
-      localStorage.setItem(ZOOM_KEY, pct);
+      localStorage.setItem('siteZoom', pct);
       document.documentElement.style.setProperty('--site-zoom', pct + '%');
       console.info('Site zoom set', pct);
     };
