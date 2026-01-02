@@ -19,7 +19,10 @@ dist-ssr/
 .env.development
 
 # 数据文件（隐私数据）
-data/
+/data/
+/data/*.json
+/data/backups/*
+/data/uploads/*
 
 # 日志文件
 logs/

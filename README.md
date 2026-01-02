@@ -71,14 +71,13 @@
 ## 目录结构
 
 ```text
-suzo_management/
+FasozVault/
 ├─ server/            # 后端入口 & 路由
 │  └─ server.js
 ├─ scripts/           # 前端业务逻辑 (ESM)
 ├─ styles/            # 样式
 ├─ pages/             # 独立页面 (多页应用)
 ├─ data/              # 运行期生成的数据与附件
-├─ LXGWBrightGB/      # 开源字体资源
 ├─ Dockerfile         # 生产镜像构建
 ├─ docker-compose.yml # 一键部署
 └─ vite.config.js     # 构建配置
@@ -98,8 +97,8 @@ suzo_management/
 
 ```bash
 # 1. 克隆仓库
-$ git clone --depth 1 https://github.com/FASUZO/fasuzo_management.git
-$ cd fasuzo_management
+$ git clone --depth 1 https://github.com/FASUZO/FasozVault.git
+$ cd FasozVault
 
 # 2. 安装依赖
 $ npm i
@@ -115,7 +114,7 @@ $ npm run build   # 打包资源到 dist/
 $ npm start       # 打开 http://localhost:3000
 ```
 
-> 💡 **提示**：上传到 GitHub 前，可以使用 `clean.ps1`（Windows）或 `clean.sh`（Linux/Mac）清理项目，确保不包含 `node_modules`、`dist`、`.env` 等文件。或者使用 `gitpush.ps1`（Windows）或 `gitpush.sh`（Linux/Mac）一键清理并推送到 GitHub。详细说明请查看 [DEPLOYMENT.md](DEPLOYMENT.md)
+> 💡 **提示**：上传到 GitHub 前，可以使用 `clean.ps1`（Windows）或 `clean.sh`（Linux/Mac）清理项目，确保不包含 `node_modules`、`dist`、`.env` 等文件。或者使用 `gitpush.ps1`（Windows）或 `gitpush.sh`（Linux/Mac）一键清理并推送到 GitHub。
 
 > 默认 Express 会先尝试读取 `dist/`，若不存在则退回 Vite Dev Server。
 
@@ -129,8 +128,8 @@ $ npm start       # 打开 http://localhost:3000
 
 ```bash
 # 1. 克隆项目（如果还没有）
-$ git clone https://github.com/FASUZO/fasuzo_management.git
-$ cd fasuzo_management
+$ git clone https://github.com/FASUZO/FasozVault.git
+$ cd FasozVault
 
 # 2. 创建环境变量文件（首次部署）
 $ cp env.example .env
@@ -219,7 +218,6 @@ $ docker push your-username/fasozvault:latest
 $ docker pull your-username/fasozvault:latest
 ```
 
-详细说明请查看 [.docker/README.md](.docker/README.md)
 
 ### 方式二：传统服务器
 
@@ -256,7 +254,7 @@ $ docker pull your-username/fasozvault:latest
 
 ## License
 
-[MIT](LICENSE) © 2023–Present SUZO
+[MIT](LICENSE) © 2023–Present FASUZO
 
 ## 配置与调试
 
