@@ -1,9 +1,8 @@
 /**
  * scripts/pages/assets.js
- * 资产管理页面 - 视图层 (View) - 最终修复版 (UI/UX 优化)
- * * 修复：下拉框文字对齐
- * * 修复：暗黑模式适配
- * * 修复：组合资产勾选框垂直居中对齐，文字修改为“组合资产”
+ * 资产管理页面 - 视图层 (View) - 最终完善版 v3.2
+ * * 修复：新标签立即保存到 data.json
+ * * 优化：编辑窗口 UI (字体加粗、颜色加深、间距紧凑)
  */
 
 import { logInfo, logDebug } from '../utils/debug.js';
@@ -15,13 +14,106 @@ import { assetStore } from '../modules/store.js';
 // --- CSS 样式注入 ---
 const STYLE_INJECTION = `
 <style>
-    /* 下拉框文字对齐修正 */
+    /* 下拉框对齐修正 */
     .modal-body select {
         height: 34px; 
         line-height: normal; 
         padding: 0 8px; 
     }
+
+
+    /* --- Switch Bar (顶栏) 优化版 --- */
+    .switch-bar {
+        position: fixed;
+        top: 10px;
+        right: 20px;
+        z-index: 2000;
+        background: #fff;
+        border-radius: 20px; /* 圆角胶囊形状 */
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        display: flex;
+        align-items: center;
+        padding: 4px;
+        height: 40px; /* 固定高度 */
+        /* 核心修复：防止内容溢出 */
+        overflow: hidden; 
+        max-width: 600px; /* 展开时的最大宽度 */
+        transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
     
+    .switch-bar.collapsed {
+        max-width: 40px; /* 收缩宽度 = 按钮宽度 + padding */
+    }
+    
+    /* 收缩时隐藏非折叠按钮的所有元素 */
+    .switch-bar.collapsed > *:not(.toggle-btn) {
+        opacity: 0;
+        pointer-events: none;
+        width: 0;
+        margin: 0;
+        padding: 0;
+        border: none; /* 确保边框也消失 */
+    }
+
+    .switch-bar .icon-btn {
+        border: none;
+        background: transparent;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        flex-shrink: 0; /* 防止被挤压 */
+        color: #555;
+        transition: background 0.2s;
+    }
+    .switch-bar .icon-btn:hover { background: #f0f0f0; }
+    .switch-bar .icon-btn.active { color: #4caf50; }
+
+    /* 暗黑模式适配 */
+    body.dark .switch-bar { background: #333; box-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+    body.dark .switch-bar .icon-btn { color: #bbb; }
+    body.dark .switch-bar .icon-btn:hover { background: #444; }
+    
+    /* --- 表单样式优化 (加深、加粗、紧凑) --- */
+    .form-row {
+        margin-bottom: 8px; /* 减小行间距 */
+        display: flex;
+        align-items: center;
+    }
+    .form-label {
+        width: 90px;      /* 固定宽度 */
+        font-weight: 600; /* 加粗 */
+        color: #222;      /* 深色 */
+        font-size: 14px;
+        flex-shrink: 0;   /* 防止压缩 */
+    }
+    .form-input {
+        flex: 1;
+        padding: 6px 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+        color: #333;
+    }
+
+    /* 标签编辑器 */
+    .tag-editor-container {
+        flex: 1;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 4px;
+        min-height: 34px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        background: #fff;
+    }
+
     /* 链接芯片 */
     .link-chip {
         font-size: 11px;
@@ -35,25 +127,14 @@ const STYLE_INJECTION = `
         vertical-align: middle;
     }
 
-    /* 标签编辑器容器 */
-    .tag-editor-container {
-        flex: 1;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        padding: 4px;
-        min-height: 34px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        background: #fff;
-    }
-
-    /* 暗黑模式适配 */
+    /* --- 暗黑模式适配 --- */
     body.dark .modal { background: #2d2d2d; color: #e0e0e0; border: 1px solid #444; }
     body.dark .modal h3 { color: #fff; border-bottom-color: #444; }
     body.dark .modal-body { color: #ccc; }
     
-    body.dark .modal input, 
+    /* 暗黑模式表单 */
+    body.dark .form-label { color: #ddd; } /* 暗黑模式下文字变浅 */
+    body.dark .form-input, 
     body.dark .modal select, 
     body.dark .tag-editor-container {
         background-color: #333 !important;
@@ -189,7 +270,6 @@ const COMPONENT_DISPLAY_FIELDS = [
         tableBody.innerHTML = '';
         const allAssets = assetStore.getAssets(); 
 
-        // 5.1 第一层过滤：Tab 分组
         let filtered = allAssets.filter(asset => {
             if (currentTab === 'composite') {
                 return asset.isComposite === true;
@@ -203,7 +283,6 @@ const COMPONENT_DISPLAY_FIELDS = [
             }
         });
 
-        // 5.2 第二层过滤
         filtered = filtered.filter(asset => filterAsset(asset, {
             searchKeyword,
             filterCriteria,
@@ -211,7 +290,6 @@ const COMPONENT_DISPLAY_FIELDS = [
             isComponentAsset: () => false 
         }));
 
-        // 5.3 排序
         filtered.sort((a, b) => {
             if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
             if (a.pinned) return (b.pinnedTime || 0) - (a.pinnedTime || 0);
@@ -227,7 +305,6 @@ const COMPONENT_DISPLAY_FIELDS = [
             return 0;
         });
 
-        // 5.4 渲染
         if (filtered.length === 0) {
             const emptyTr = document.createElement('tr');
             emptyTr.innerHTML = `<td colspan="10" style="text-align:center; padding:30px; color:#999;">
@@ -642,21 +719,19 @@ const COMPONENT_DISPLAY_FIELDS = [
 
     function buildAssetForm(assetData, readonly, isNew, overlay) {
         const container = document.createElement('div');
-        const ROW_STYLE = 'margin-bottom:12px; display:flex; align-items:center;';
-        const LABEL_STYLE = 'width:80px; font-weight:500; color:#555;';
-        const INPUT_STYLE = 'flex:1; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:14px;';
         
         const createInput = (label, key, type='text') => {
             const row = document.createElement('div');
-            row.style.cssText = ROW_STYLE;
+            row.className = 'form-row'; // 使用 CSS 类
+            
             const lbl = document.createElement('label');
             lbl.textContent = label;
-            lbl.style.cssText = LABEL_STYLE;
+            lbl.className = 'form-label'; // 使用 CSS 类
             
             let input;
             if(key === 'category' || key === 'channel') {
                 input = document.createElement('select');
-                input.style.cssText = INPUT_STYLE;
+                input.className = 'form-input'; // 使用 CSS 类
                 const list = key === 'category' ? assetStore.state.categories : assetStore.state.channels;
                 list.forEach(item => {
                     const opt = document.createElement('option');
@@ -701,7 +776,7 @@ const COMPONENT_DISPLAY_FIELDS = [
             } else {
                 input = document.createElement('input');
                 input.type = type;
-                input.style.cssText = INPUT_STYLE;
+                input.className = 'form-input'; // 使用 CSS 类
                 input.value = assetData[key] || '';
                 
                 if (key === 'purchasePrice' && assetData.isComposite) {
@@ -728,12 +803,10 @@ const COMPONENT_DISPLAY_FIELDS = [
         createInput('渠道', 'channel');
         createInput('备注', 'description');
 
-        // --- 组合资产 (修正布局：Flex 居中) ---
+        // --- 组合资产 ---
         const compDiv = document.createElement('div');
-        // 修正 1: 这里只负责垂直间距，不设 display:flex，以免影响下方的 listDiv
         compDiv.style.margin = '15px 0';
 
-        // 新增: 一个专门的行容器，用于包裹 Checkbox 和 Label
         const checkboxRow = document.createElement('div');
         checkboxRow.style.cssText = 'display: flex; align-items: center; margin-bottom: 5px;';
         
@@ -742,14 +815,13 @@ const COMPONENT_DISPLAY_FIELDS = [
         if(readonly) cb.disabled=true;
         
         const lb = document.createElement('label'); lb.htmlFor='isComp'; 
-        lb.textContent=' 组合资产'; // 修正 2: 文字修改
+        lb.textContent=' 组合资产'; 
         lb.style.cursor = 'pointer';
         
         checkboxRow.appendChild(cb);
         checkboxRow.appendChild(lb);
         compDiv.appendChild(checkboxRow);
 
-        // 状态联动
         cb.addEventListener('change', e => {
             assetData.isComposite = e.target.checked;
             listDiv.style.display = e.target.checked ? 'block' : 'none';
@@ -760,7 +832,6 @@ const COMPONENT_DISPLAY_FIELDS = [
             }
         });
 
-        // 列表区域保持不变，但现在是添加在 compDiv 内部，位于 checkboxRow 下方
         const listDiv = document.createElement('div');
         listDiv.className = 'comp-list-container'; 
         listDiv.style.cssText = `border:1px solid #ddd; background:#f9f9f9; padding:10px; border-radius:4px; display:${assetData.isComposite?'block':'none'}`;
@@ -841,7 +912,7 @@ const COMPONENT_DISPLAY_FIELDS = [
         };
         renderComps();
         
-        compDiv.appendChild(listDiv); // 修正 3: listDiv 也是 compDiv 的子元素，但排在 checkboxRow 后面
+        compDiv.appendChild(listDiv); 
         container.appendChild(compDiv);
 
         // 底部按钮
@@ -884,6 +955,7 @@ const COMPONENT_DISPLAY_FIELDS = [
         return container;
     }
 
+    // --- 11. 标签选择器 (修复: 立即保存) ---
     function openTagPicker(currentTags, onSelect) {
         const overlay = document.createElement('div'); overlay.className = 'overlay';
         const modal = document.createElement('div'); modal.className = 'modal';
@@ -897,14 +969,29 @@ const COMPONENT_DISPLAY_FIELDS = [
         const addBtn = document.createElement('button');
         addBtn.textContent = '添加';
         addBtn.className = 'btn-like btn-small';
-        const handleAdd = () => { const val = input.value.trim(); if(val) { onSelect(val); overlay.remove(); } };
+        
+        const handleAdd = () => { 
+            const val = input.value.trim(); 
+            if(val) { 
+                // 1. 如果是新标签，加入全局列表
+                if (!assetStore.state.tags.includes(val)) {
+                    assetStore.state.tags.push(val);
+                    // 2. 【关键】立即保存到服务器，防止丢失
+                    assetStore.saveToServer(true); 
+                }
+                onSelect(val); 
+                overlay.remove(); 
+            } 
+        };
         addBtn.onclick = handleAdd;
         input.addEventListener('keydown', e => { if(e.key === 'Enter') handleAdd(); });
         inputRow.appendChild(input); inputRow.appendChild(addBtn);
         body.appendChild(inputRow);
         
         const tagList = document.createElement('div');
-        tagList.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px;';
+        tagList.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; max-height:200px; overflow-y:auto;';
+        
+        // 显示标签列表
         const allTags = assetStore.state.tags; 
         if(allTags.length) {
             allTags.forEach(t => {
@@ -952,7 +1039,7 @@ const COMPONENT_DISPLAY_FIELDS = [
         overlay.appendChild(modal); document.body.appendChild(overlay);
     }
 
-    // --- 11. 辅助 ---
+    // --- 12. 辅助 ---
     function viewImage(src) {
         const win = window.open('about:blank');
         if(win) win.document.write(`<img src="${src}" style="max-width:100%;" />`);
@@ -963,6 +1050,6 @@ const COMPONENT_DISPLAY_FIELDS = [
         const cat = prompt('输入筛选分类 (留空取消):', filterCriteria.category);
         if(cat !== null) { filterCriteria.category = cat; renderTable(); }
     }
-    function openHelpModal() { alert('资产管理系统 v3.1'); }
+    function openHelpModal() { alert('资产管理系统 v3.2'); }
 
 })();

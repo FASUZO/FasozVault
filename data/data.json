@@ -20,7 +20,8 @@
     "CPU",
     "硬盘",
     "显示器",
-    "需续费"
+    "需续费",
+    "设备"
   ],
   "assets": [
     {
@@ -61,7 +62,9 @@
       "originId": "ID_md4q7wmv_dddz",
       "name": "激光雕刻机",
       "category": "设备",
-      "subcategory": [],
+      "subcategory": [
+        "设备"
+      ],
       "amount": "200+45",
       "purchasePrice": "200+45",
       "date": "2025-04-21",
@@ -235,7 +238,9 @@
       "originId": "ID_md4q6rbe_81g6",
       "name": "除湿机",
       "category": "设备",
-      "subcategory": [],
+      "subcategory": [
+        "设备"
+      ],
       "amount": "114.00",
       "purchasePrice": "114.00",
       "date": "2025-06-02",
@@ -439,7 +444,7 @@
       "name": "相机",
       "category": "设备",
       "subcategory": [
-        "默认"
+        "设备"
       ],
       "amount": "4249.00",
       "purchasePrice": "4249.00",
